@@ -1,39 +1,80 @@
-import time
-import telebot
+# -*- coding: UTF8 -*-
+import requests
+import datetime
 
-TOKEN = "889717984:AAGF2z9GkkBmNRnjiEqAwOJaM_W9wfFEnI0"
-bot = telebot.TeleBot(token=TOKEN)
 
-def findat(msg):
-    # from a list of texts, it finds the one with the '@' sign
-    for i in msg:
-        if '@' in i:
-            return i
 
-@bot.message_handler(commands=['start']) # welcome message handler
-def send_welcome(message):
-    bot.reply_to(message, '(placeholder text)')
+class BotHandler:
+    def __init__(self, token):
+            self.token = token
+            self.api_url = "https://api.telegram.org/bot{}/".format(token)
 
-@bot.message_handler(commands=['help']) # help message handler
-def send_welcome(message):
-    bot.reply_to(message, 'ALPHA = FEATURES MAY NOT WORK')
+    #url = "https://api.telegram.org/bot<token>/"
 
-@bot.message_handler(func=lambda msg: msg.text is not None and '@' in msg.text)
-# lambda function finds messages with the '@' sign in them
-# in case msg.text doesn't exist, the handler doesn't process it
-def at_converter(message):
-    texts = message.text.split()
-    at_text = findat(texts)
-    if at_text == '@': # in case it's just the '@', skip
-        pass
-    else:
-        insta_link = "https://instagram.com/{}".format(at_text[1:])
-        bot.reply_to(message, insta_link)
+    def get_updates(self, offset=0, timeout=30):
+        method = 'getUpdates'
+        params = {'timeout': timeout, 'offset': offset}
+        resp = requests.get(self.api_url + method, params)
+        result_json = resp.json()['result']
+        return result_json
 
-while True:
+    def send_message(self, chat_id, text):
+        params = {'chat_id': chat_id, 'text': text, 'parse_mode': 'HTML'}
+        method = 'sendMessage'
+        resp = requests.post(self.api_url + method, params)
+        return resp
+
+    def get_first_update(self):
+        get_result = self.get_updates()
+
+        if len(get_result) > 0:
+            last_update = get_result[0]
+        else:
+            last_update = None
+
+        return last_update
+
+
+token = '889717984:AAGF2z9GkkBmNRnjiEqAwOJaM_W9wfFEnI0' #Token of your bot
+magnito_bot = BotHandler(token) #Your bot's name
+
+
+
+def main():
+    new_offset = 0
+    print('hi, now launching...')
+
+    while True:
+        all_updates=magnito_bot.get_updates(new_offset)
+
+        if len(all_updates) > 0:
+            for current_update in all_updates:
+                print(current_update)
+                first_update_id = current_update['update_id']
+                if 'text' not in current_update['message']:
+                    first_chat_text='New member'
+                else:
+                    first_chat_text = current_update['message']['text']
+                first_chat_id = current_update['message']['chat']['id']
+                if 'first_name' in current_update['message']:
+                    first_chat_name = current_update['message']['chat']['first_name']
+                elif 'new_chat_member' in current_update['message']:
+                    first_chat_name = current_update['message']['new_chat_member']['username']
+                elif 'from' in current_update['message']:
+                    first_chat_name = current_update['message']['from']['first_name']
+                else:
+                    first_chat_name = "unknown"
+
+                if first_chat_text == 'Hi':
+                    magnito_bot.send_message(first_chat_id, 'Morning ' + first_chat_name)
+                    new_offset = first_update_id + 1
+                else:
+                    magnito_bot.send_message(first_chat_id, 'How are you doing '+first_chat_name)
+                    new_offset = first_update_id + 1
+
+
+if __name__ == '__main__':
     try:
-        bot.polling(none_stop=True)
-        # ConnectionError and ReadTimeout because of possible timout of the requests library
-        # maybe there are others, therefore Exception
-    except Exception:
-        time.sleep(15)
+        main()
+    except KeyboardInterrupt:
+        exit()
